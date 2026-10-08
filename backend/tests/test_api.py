@@ -1,7 +1,9 @@
 """OpsPilot 后端 API 冒烟测试。"""
 from fastapi.testclient import TestClient
 
+from app.ai import _rule_based
 from app.main import app
+from app.models import Alert
 
 
 def test_health() -> None:
@@ -48,3 +50,12 @@ def test_alert_rule_and_prometheus_metrics() -> None:
         prom = client.get("/metrics")
         assert prom.status_code == 200
         assert "opspilot_hosts_total" in prom.text
+
+
+def test_rule_based_diagnosis() -> None:
+    """未配置 LLM_API_KEY 时，应能降级为规则诊断。"""
+    alert = Alert(message="[CRITICAL] host1 cpu_percent > 80 (当前 95.0)")
+    text = _rule_based(alert, "cpu_percent")
+    assert "【现象】" in text
+    assert "【排查建议】" in text
+    assert "【处理建议】" in text

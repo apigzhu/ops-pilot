@@ -152,6 +152,52 @@ curl "http://localhost:8000/api/v1/alerts?status=firing"
 | `opspilot_alerts_fired_total` | Counter | 累计触发告警数 |
 
 
+
+## AI 辅助故障诊断
+
+告警触发时，可把「告警 + 主机 + 触发前指标」整理成上下文，交给大模型生成故障诊断：
+
+- **OpenAI 兼容接口**：支持 DeepSeek / 通义千问 / OpenAI 等
+- **无 Key 自动降级**：未配置 `LLM_API_KEY` 时使用内置规则诊断，功能始终可用
+- **结果落库**：诊断内容存入 `alert_diagnoses` 表，前端可查看
+
+### 配置
+
+在 `docker-compose.yml` 的 backend 服务里设置：
+
+```yaml
+LLM_API_KEY: "sk-xxxxxxxx"              # 你的 API Key
+LLM_BASE_URL: "https://api.deepseek.com/v1"
+LLM_MODEL: "deepseek-chat"
+LLM_AUTO_DIAGNOSE: "false"              # 告警触发时是否自动诊断
+```
+
+### 使用
+
+```bash
+# 对某条告警执行 AI 诊断
+curl -X POST http://localhost:8000/api/v1/alerts/1/diagnose
+
+# 获取已有诊断结果
+curl http://localhost:8000/api/v1/alerts/1/diagnosis
+```
+
+前端「告警事件」里每条告警都有 **🤖 AI 诊断** 按钮，点击即可生成并展开查看。
+
+### 诊断输出示例
+
+```
+【现象】CPU 使用率持续超过阈值，主机可能出现计算资源瓶颈。
+【可能原因】
+1. 存在 CPU 密集型进程或死循环
+2. 负载突增 / 流量高峰
+3. 容器或进程数过多导致资源争抢
+【排查建议】
+1. top -o %CPU  查看占用最高的进程
+2. uptime  查看 1/5/15 分钟负载
+...
+```
+
 ## Kubernetes 部署
 
 前置：Docker Desktop → Settings → Kubernetes → 勾选 **Enable Kubernetes**。
@@ -220,6 +266,6 @@ kubectl delete namespace opspilot
 - [x] Phase 3：Web 可视化仪表盘（React + ECharts）
 - [x] Phase 4：Prometheus + node-exporter + Grafana
 - [ ] Phase 5：日志采集与检索（Loki）
-- [ ] Phase 6：AI 辅助故障诊断（LLM 分析告警与日志）
+- [x] Phase 6：AI 辅助故障诊断（LLM 分析告警 + 规则降级）
 - [x] Phase 5：CI/CD（GitHub Actions）
 - [x] Phase 6：Kubernetes 部署清单 + 本地集群部署
