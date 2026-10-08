@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app import alerting
+from app import alerting, telemetry
 from app.api import alerts, hosts, metrics
 from app.database import Base, engine
 
@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="OpsPilot", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="OpsPilot", version="0.4.0", lifespan=lifespan)
 
 # 允许前端跨域访问（演示环境放开，生产应收紧 allow_origins）
 app.add_middleware(
@@ -36,6 +36,7 @@ app.add_middleware(
 app.include_router(metrics.router)
 app.include_router(hosts.router)
 app.include_router(alerts.router)
+app.include_router(telemetry.router)
 
 
 @app.get("/health", tags=["system"])

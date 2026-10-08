@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Host, Metric
 from app.schemas import MetricIn, MetricOut
+from app.telemetry import METRICS_INGESTED
 
 router = APIRouter(prefix="/api/v1/metrics", tags=["metrics"])
 
@@ -44,6 +45,7 @@ def ingest_metric(payload: MetricIn, db: Session = Depends(get_db)) -> dict:
     )
     db.add(metric)
     db.commit()
+    METRICS_INGESTED.inc()
     return {"status": "ok", "host_id": host.id}
 
 

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.database import SessionLocal
 from app.models import Alert, AlertRule, Host, Metric
+from app.telemetry import ALERTS_FIRED
 
 logger = logging.getLogger("opspilot.alerting")
 
@@ -112,6 +113,7 @@ def _evaluate_host(db: Session, rule: AlertRule, host: Host, now: datetime) -> N
         )
         db.add(alert)
         db.commit()
+        ALERTS_FIRED.inc()
         notify(alert.message)
     elif current is None and firing is not None:
         firing.status = "resolved"
