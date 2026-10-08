@@ -54,7 +54,6 @@ def notify(message: str) -> None:
 
 def _is_triggered(db: Session, rule: AlertRule, host: Host, now: datetime) -> float | None:
     """判断规则是否触发，触发时返回当前指标值，否则返回 None。"""
-    metric_field = getattr(Metric, rule.metric)
 
     if rule.duration_seconds <= 0:
         # 立即触发：只看最新一条样本
