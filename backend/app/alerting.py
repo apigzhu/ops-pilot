@@ -2,7 +2,7 @@
 
 后台线程每隔 alert_eval_interval 秒检查一次：
   1. 遍历所有启用的告警规则 × 所有主机
-  2. 取持续时间内所有指标样本，若全部越界 → 触发告警
+  2. duration_seconds=0 时只看最新一条样本；>0 时看窗口内所有样本是否都越界
   3. 之前触发过、现在恢复正常 → 标记 resolved
 """
 import logging
@@ -51,8 +51,26 @@ def notify(message: str) -> None:
         logger.exception("告警 webhook 发送失败")
 
 
-def _evaluate_host(db: Session, rule: AlertRule, host: Host, now: datetime) -> None:
-    """针对单台主机评估单条规则。"""
+def _is_triggered(db: Session, rule: AlertRule, host: Host, now: datetime) -> float | None:
+    """判断规则是否触发，触发时返回当前指标值，否则返回 None。"""
+    metric_field = getattr(Metric, rule.metric)
+
+    if rule.duration_seconds <= 0:
+        # 立即触发：只看最新一条样本
+        latest = db.scalar(
+            select(Metric)
+            .where(Metric.host_id == host.id)
+            .order_by(Metric.collected_at.desc())
+            .limit(1)
+        )
+        if latest is None:
+            return None
+        value = getattr(latest, rule.metric)
+        if value is None or not _violates(value, rule):
+            return None
+        return value
+
+    # 持续触发：窗口内所有样本都必须越界
     since = now - timedelta(seconds=rule.duration_seconds)
     samples = list(
         db.scalars(
@@ -61,11 +79,15 @@ def _evaluate_host(db: Session, rule: AlertRule, host: Host, now: datetime) -> N
             .order_by(Metric.collected_at.desc())
         )
     )
-    values = [getattr(s, rule.metric) for s in samples]
-    values = [v for v in values if v is not None]
+    values = [v for v in (getattr(s, rule.metric) for s in samples) if v is not None]
+    if not values or not all(_violates(v, rule) for v in values):
+        return None
+    return values[0]
 
-    triggered = bool(values) and all(_violates(v, rule) for v in values)
-    current = values[0] if values else None
+
+def _evaluate_host(db: Session, rule: AlertRule, host: Host, now: datetime) -> None:
+    """针对单台主机评估单条规则。"""
+    current = _is_triggered(db, rule, host, now)
 
     firing = db.scalar(
         select(Alert).where(
@@ -75,7 +97,7 @@ def _evaluate_host(db: Session, rule: AlertRule, host: Host, now: datetime) -> N
         )
     )
 
-    if triggered and firing is None:
+    if current is not None and firing is None:
         alert = Alert(
             rule_id=rule.id,
             host_id=host.id,
@@ -91,7 +113,7 @@ def _evaluate_host(db: Session, rule: AlertRule, host: Host, now: datetime) -> N
         db.add(alert)
         db.commit()
         notify(alert.message)
-    elif not triggered and firing is not None:
+    elif current is None and firing is not None:
         firing.status = "resolved"
         firing.resolved_at = now
         db.commit()
