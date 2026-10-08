@@ -151,6 +151,68 @@ curl "http://localhost:8000/api/v1/alerts?status=firing"
 | `opspilot_metrics_ingested_total` | Counter | 累计接收指标数 |
 | `opspilot_alerts_fired_total` | Counter | 累计触发告警数 |
 
+
+## Kubernetes 部署
+
+前置：Docker Desktop → Settings → Kubernetes → 勾选 **Enable Kubernetes**。
+
+### 1. 构建镜像（K8s 与 Docker 共用镜像仓库）
+
+```bash
+docker build -t opspilot-backend:latest  ./backend
+docker build -t opspilot-agent:latest    ./agent
+docker build -t opspilot-frontend:latest ./frontend
+```
+
+### 2. 部署到 K8s
+
+```bash
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/postgres.yaml
+kubectl apply -f k8s/redis.yaml
+kubectl apply -f k8s/backend.yaml
+kubectl apply -f k8s/agent.yaml
+kubectl apply -f k8s/frontend.yaml
+```
+
+或者一次性：
+
+```bash
+kubectl apply -f k8s/
+```
+
+### 3. 查看状态
+
+```bash
+kubectl get pods -n opspilot -w
+kubectl get svc -n opspilot
+kubectl logs -n opspilot deploy/backend
+```
+
+### 4. 访问
+
+| 服务 | 地址 | 说明 |
+|---|---|---|
+| 前端 | http://localhost:30080 | NodePort |
+| 后端 API | `kubectl port-forward -n opspilot svc/backend 8000:8000` | 本地转发 |
+
+### 5. 清理
+
+```bash
+kubectl delete namespace opspilot
+```
+
+### K8s 资源清单
+
+| 文件 | 内容 |
+|---|---|
+| `namespace.yaml` | 命名空间 opspilot |
+| `postgres.yaml` | PVC + Deployment + Service |
+| `redis.yaml` | Deployment + Service |
+| `backend.yaml` | Deployment（2 副本）+ Service + 健康探针 |
+| `agent.yaml` | Deployment |
+| `frontend.yaml` | Deployment + NodePort Service |
+
 ## 后续规划
 
 - [x] Phase 1：指标采集 + 后端存储 + API
@@ -159,4 +221,5 @@ curl "http://localhost:8000/api/v1/alerts?status=firing"
 - [x] Phase 4：Prometheus + node-exporter + Grafana
 - [ ] Phase 5：日志采集与检索（Loki）
 - [ ] Phase 6：AI 辅助故障诊断（LLM 分析告警与日志）
-- [ ] Phase 7：Kubernetes 部署 + CI/CD 流水线
+- [x] Phase 5：CI/CD（GitHub Actions）
+- [x] Phase 6：Kubernetes 部署清单 + 本地集群部署

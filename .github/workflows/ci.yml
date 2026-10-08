@@ -89,6 +89,8 @@ jobs:
             context: ./backend
           - image: agent
             context: ./agent
+          - image: frontend
+            context: ./frontend
     steps:
       - uses: actions/checkout@v4
 
