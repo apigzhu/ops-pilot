@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     # 指标保留天数（后续清理任务使用）
     metric_retention_days: int = 7
 
+    # 告警评估线程的检查间隔（秒）
+    alert_eval_interval: int = 10
+    # 告警通知 webhook（钉钉/飞书/自定义），留空则只写日志
+    alert_webhook_url: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:

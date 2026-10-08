@@ -1,7 +1,15 @@
 """数据库模型。"""
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -47,3 +55,42 @@ class Metric(Base):
     net_recv_mb: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     host: Mapped[Host] = relationship(back_populates="metrics")
+
+
+class AlertRule(Base):
+    """告警规则：某个指标超过/低于阈值并持续一段时间就触发。"""
+
+    __tablename__ = "alert_rules"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(128))
+    metric: Mapped[str] = mapped_column(String(32))  # cpu_percent / memory_percent / disk_percent
+    operator: Mapped[str] = mapped_column(String(2))  # > >= < <=
+    threshold: Mapped[float] = mapped_column(Float)
+    duration_seconds: Mapped[int] = mapped_column(Integer, default=60)
+    severity: Mapped[str] = mapped_column(String(16), default="warning")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class Alert(Base):
+    """一次告警事件（触发 → 恢复）。"""
+
+    __tablename__ = "alerts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    rule_id: Mapped[int] = mapped_column(
+        ForeignKey("alert_rules.id", ondelete="CASCADE"), index=True
+    )
+    host_id: Mapped[int] = mapped_column(
+        ForeignKey("hosts.id", ondelete="CASCADE"), index=True
+    )
+    value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="firing")  # firing / resolved
+    message: Mapped[str] = mapped_column(String(512))
+    triggered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    resolved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

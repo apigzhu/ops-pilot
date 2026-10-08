@@ -44,3 +44,39 @@ class MetricOut(BaseModel):
     net_recv_mb: float | None
 
     model_config = {"from_attributes": True}
+
+
+class AlertRuleIn(BaseModel):
+    """创建告警规则的请求体。"""
+
+    name: str = Field(min_length=1, max_length=128)
+    metric: str = Field(pattern="^(cpu_percent|memory_percent|disk_percent)$")
+    operator: str = Field(pattern="^(>|>=|<|<=)$")
+    threshold: float
+    duration_seconds: int = Field(default=60, ge=0)
+    severity: str = Field(default="warning", pattern="^(warning|critical)$")
+    enabled: bool = True
+
+
+class AlertRuleOut(AlertRuleIn):
+    """告警规则返回结构。"""
+
+    id: int
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AlertOut(BaseModel):
+    """告警事件返回结构。"""
+
+    id: int
+    rule_id: int
+    host_id: int
+    value: float | None
+    status: str
+    message: str
+    triggered_at: datetime
+    resolved_at: datetime | None
+
+    model_config = {"from_attributes": True}
