@@ -8,6 +8,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Text,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -64,8 +65,8 @@ class AlertRule(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(128))
-    metric: Mapped[str] = mapped_column(String(32))  # cpu_percent / memory_percent / disk_percent
-    operator: Mapped[str] = mapped_column(String(2))  # > >= < <=
+    metric: Mapped[str] = mapped_column(String(32))
+    operator: Mapped[str] = mapped_column(String(2))
     threshold: Mapped[float] = mapped_column(Float)
     duration_seconds: Mapped[int] = mapped_column(Integer, default=60)
     severity: Mapped[str] = mapped_column(String(16), default="warning")
@@ -88,9 +89,25 @@ class Alert(Base):
         ForeignKey("hosts.id", ondelete="CASCADE"), index=True
     )
     value: Mapped[float | None] = mapped_column(Float, nullable=True)
-    status: Mapped[str] = mapped_column(String(16), default="firing")  # firing / resolved
+    status: Mapped[str] = mapped_column(String(16), default="firing")
     message: Mapped[str] = mapped_column(String(512))
     triggered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     resolved_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+
+
+class AlertDiagnosis(Base):
+    """某条告警的 AI 诊断结果（独立表，避免修改已有表结构）。"""
+
+    __tablename__ = "alert_diagnoses"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    alert_id: Mapped[int] = mapped_column(
+        ForeignKey("alerts.id", ondelete="CASCADE"), unique=True, index=True
+    )
+    content: Mapped[str] = mapped_column(Text)
+    model: Mapped[str] = mapped_column(String(64), default="rule-based")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
     )

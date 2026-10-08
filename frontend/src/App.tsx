@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "./api";
-import type { Alert, Host, Metric } from "./types";
+import type { Alert, Diagnosis, Host, Metric } from "./types";
 import MetricChart from "./components/MetricChart";
 
 const REFRESH_MS = 5000;
@@ -14,6 +14,8 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [diagnoses, setDiagnoses] = useState<Record<number, Diagnosis>>({});
+  const [loadingId, setLoadingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // 定期拉取主机列表 + 告警
@@ -66,7 +68,20 @@ export default function App() {
     [alerts]
   );
 
-  const pct = (v: number | undefined) => (v === undefined ? "--" : `${v.toFixed(1)}%`);
+  const pct = (v: number | undefined) =>
+    v === undefined ? "--" : `${v.toFixed(1)}%`;
+
+  const runDiagnose = async (alertId: number) => {
+    setLoadingId(alertId);
+    try {
+      const d = await api.diagnose(alertId);
+      setDiagnoses((prev) => ({ ...prev, [alertId]: d }));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoadingId(null);
+    }
+  };
 
   return (
     <div className="app">
@@ -135,15 +150,35 @@ export default function App() {
         </div>
         <div className="alert-list">
           {alerts.length === 0 && <div className="muted">暂无告警</div>}
-          {alerts.map((a) => (
-            <div key={a.id} className={`alert-row ${a.status}`}>
-              <span className={`badge ${a.status}`}>
-                {a.status === "firing" ? "告警中" : "已恢复"}
-              </span>
-              <span className="alert-msg">{a.message}</span>
-              <span className="alert-time">{fmtTime(a.triggered_at)}</span>
-            </div>
-          ))}
+          {alerts.map((a) => {
+            const d = diagnoses[a.id];
+            return (
+              <div key={a.id} className={`alert-row ${a.status}`}>
+                <div className="alert-main">
+                  <span className={`badge ${a.status}`}>
+                    {a.status === "firing" ? "告警中" : "已恢复"}
+                  </span>
+                  <span className="alert-msg">{a.message}</span>
+                  <span className="alert-time">{fmtTime(a.triggered_at)}</span>
+                  <button
+                    className="btn-ai"
+                    onClick={() => runDiagnose(a.id)}
+                    disabled={loadingId === a.id}
+                  >
+                    {loadingId === a.id ? "诊断中…" : "🤖 AI 诊断"}
+                  </button>
+                </div>
+                {d && (
+                  <div className="diagnosis">
+                    <div className="diagnosis-head">
+                      AI 诊断结果 · 模型 {d.model} · {fmtTime(d.created_at)}
+                    </div>
+                    <pre className="diagnosis-body">{d.content}</pre>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </section>
     </div>

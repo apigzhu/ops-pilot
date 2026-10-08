@@ -26,3 +26,10 @@ export interface Alert {
   triggered_at: string;
   resolved_at: string | null;
 }
+
+export interface Diagnosis {
+  alert_id: number;
+  content: string;
+  model: string;
+  created_at: string;
+}

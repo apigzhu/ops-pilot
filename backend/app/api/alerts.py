@@ -1,11 +1,12 @@
-"""告警规则与告警事件接口。"""
+"""告警规则、告警事件与 AI 诊断接口。"""
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import ai
 from app.database import get_db
-from app.models import Alert, AlertRule
-from app.schemas import AlertOut, AlertRuleIn, AlertRuleOut
+from app.models import Alert, AlertDiagnosis, AlertRule
+from app.schemas import AlertOut, AlertRuleIn, AlertRuleOut, DiagnosisOut
 
 router = APIRouter(prefix="/api/v1", tags=["alerts"])
 
@@ -52,3 +53,23 @@ def list_alerts(
             .limit(limit)
         )
     return list(db.scalars(stmt))
+
+
+@router.post("/alerts/{alert_id}/diagnose", response_model=DiagnosisOut)
+def diagnose_alert(alert_id: int, db: Session = Depends(get_db)) -> AlertDiagnosis:
+    """对一条告警执行 AI 故障诊断（已存在则重新生成）。"""
+    alert = db.get(Alert, alert_id)
+    if alert is None:
+        raise HTTPException(status_code=404, detail="alert not found")
+    return ai.diagnose(db, alert)
+
+
+@router.get("/alerts/{alert_id}/diagnosis", response_model=DiagnosisOut)
+def get_diagnosis(alert_id: int, db: Session = Depends(get_db)) -> AlertDiagnosis:
+    """获取某条告警已有的 AI 诊断结果。"""
+    record = db.scalar(
+        select(AlertDiagnosis).where(AlertDiagnosis.alert_id == alert_id)
+    )
+    if record is None:
+        raise HTTPException(status_code=404, detail="diagnosis not found")
+    return record

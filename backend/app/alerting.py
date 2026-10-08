@@ -15,6 +15,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import ai
 from app.config import get_settings
 from app.database import SessionLocal
 from app.models import Alert, AlertRule, Host, Metric
@@ -114,6 +115,11 @@ def _evaluate_host(db: Session, rule: AlertRule, host: Host, now: datetime) -> N
         db.commit()
         ALERTS_FIRED.inc()
         notify(alert.message)
+        if get_settings().llm_auto_diagnose:
+            try:
+                ai.diagnose(db, alert)
+            except Exception:  # noqa: BLE001 - 自动诊断失败不影响告警
+                logger.exception("自动 AI 诊断失败：alert_id=%s", alert.id)
     elif current is None and firing is not None:
         firing.status = "resolved"
         firing.resolved_at = now

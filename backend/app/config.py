@@ -25,6 +25,15 @@ class Settings(BaseSettings):
     # 告警通知 webhook（钉钉/飞书/自定义），留空则只写日志
     alert_webhook_url: str | None = None
 
+    # ---- AI 故障诊断（OpenAI 兼容接口）----
+    # 不填 API Key 时自动降级为规则诊断
+    llm_api_key: str | None = None
+    llm_base_url: str = "https://api.deepseek.com/v1"
+    llm_model: str = "deepseek-chat"
+    llm_timeout: int = 30
+    # 告警触发时是否自动调用 AI 诊断
+    llm_auto_diagnose: bool = False
+
 
 @lru_cache
 def get_settings() -> Settings:
